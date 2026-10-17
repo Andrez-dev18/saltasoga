@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SaltaSoga</title>
+  
+  <!-- Configuración de Tailwind para modo oscuro por clase -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    }
+  </script>
+
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#030712" id="themeColorMeta">
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+</head>
+<body class="bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white min-h-screen flex flex-col items-center justify-center p-4 select-none transition-colors duration-200">
+
+  <!-- Métricas principales -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 w-full max-w-lg mb-4 text-center">
+    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-sm transition-colors">
+      <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Saltos</span>
+      <div id="counter" class="text-4xl font-black text-emerald-600 dark:text-emerald-400">0</div>
+    </div>
+    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-sm transition-colors">
+      <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Tiempo</span>
+      <div id="timer" class="text-4xl font-black text-cyan-600 dark:text-cyan-400">00:00</div>
+    </div>
+    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-sm transition-colors">
+      <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Ritmo (SPM)</span>
+      <div id="spm" class="text-4xl font-black text-violet-600 dark:text-violet-400">0</div>
+    </div>
+    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-sm transition-colors">
+      <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Estado</span>
+      <div id="status" class="text-base font-bold text-amber-500 dark:text-yellow-400 mt-2">Listo</div>
+    </div>
+  </div>
+
+  <!-- Contenedor del Canvas con Botones Flotantes -->
+  <div class="relative w-full max-w-lg aspect-[3/4] bg-black rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-800 shadow-2xl">
+    <video id="webcam" class="hidden" playsinline></video>
+    <canvas id="output" class="w-full h-full object-cover"></canvas>
+
+    <!-- Botón Modo Oscuro / Claro (Arriba a la izquierda) -->
+    <button id="themeToggleBtn" class="absolute top-3 left-3 z-20 p-3 bg-white/70 dark:bg-black/50 hover:bg-white dark:hover:bg-black/80 backdrop-blur-md border border-gray-300 dark:border-white/20 rounded-full text-gray-800 dark:text-white transition active:scale-95 shadow-lg">
+      <!-- Ícono Sol (Modo Claro) -->
+      <svg id="sunIcon" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+      </svg>
+      <!-- Ícono Luna (Modo Oscuro) -->
+      <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+      </svg>
+    </button>
+
+    <!-- Botón Cambiar Cámara (Arriba a la derecha) -->
+    <button id="switchCamBtn" class="absolute top-3 right-3 z-20 p-3 bg-white/70 dark:bg-black/50 hover:bg-white dark:hover:bg-black/80 backdrop-blur-md border border-gray-300 dark:border-white/20 rounded-full text-gray-800 dark:text-white transition active:scale-95 shadow-lg">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- Botones de Control -->
+  <div class="flex gap-3 mt-5 w-full max-w-lg">
+    <button id="startBtn" class="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-xl shadow transition">
+      Iniciar
+    </button>
+    <button id="pauseBtn" class="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-xl shadow transition hidden">
+      Pausar
+    </button>
+    <button id="resetBtn" class="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition">
+      Reiniciar
+    </button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
