@@ -9,8 +9,16 @@ const statusElement = document.getElementById('status');
 
 const startBtn = document.getElementById('startBtn');
 const pauseBtn = document.getElementById('pauseBtn');
+const finishBtn = document.getElementById('finishBtn');
 const resetBtn = document.getElementById('resetBtn');
 const switchCamBtn = document.getElementById('switchCamBtn');
+
+// Detección automática del entorno
+const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+const API_BASE_URL = isLocal 
+  ? 'http://127.0.0.1:8000/api' 
+  : 'https://api-saltasoga.devandre.com/api';
 
 // Variables de estado
 let jumpCount = 0;
@@ -176,6 +184,16 @@ async function processVideo() {
     requestAnimationFrame(processVideo);
 }
 
+function stopCamera() {
+    if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
+    }
+    videoElement.srcObject = null;
+    videoElement.dataset.looping = "";
+    isProcessingFrame = false;
+}
+
 // Alternar entre frontal y trasera
 switchCamBtn.addEventListener('click', async () => {
     currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
@@ -189,6 +207,7 @@ startBtn.addEventListener('click', async () => {
     isPaused = false;
     startBtn.classList.add('hidden');
     pauseBtn.classList.remove('hidden');
+    finishBtn.classList.remove('hidden');
     pauseBtn.textContent = "Pausar";
     startTimer();
 });
@@ -206,6 +225,7 @@ pauseBtn.addEventListener('click', () => {
     }
 });
 
+// BOTÓN REINICIAR: Pone todo en cero sin guardar
 resetBtn.addEventListener('click', () => {
     jumpCount = 0;
     secondsElapsed = 0;
@@ -226,6 +246,42 @@ if ('serviceWorker' in navigator) {
       .catch((err) => console.log('Fallo registro SW:', err));
   });
 }
+
+// BOTÓN TERMINAR: Guarda en Laravel, detiene la cámara y muestra resumen
+finishBtn.addEventListener('click', async () => {
+    if (secondsElapsed < 3 && jumpCount === 0) {
+        alert("Realiza algunos saltos antes de terminar la sesión.");
+        return;
+    }
+
+    // Detener timer y cámara
+    clearInterval(timerInterval);
+    stopCamera();
+    isRunning = false;
+    isPaused = false;
+
+    // Métricas finales
+    const minutes = secondsElapsed > 0 ? (secondsElapsed / 60) : 1;
+    const finalSpm = Math.round(jumpCount / minutes);
+    const estimatedCalories = (jumpCount * 0.18).toFixed(2);
+
+    statusElement.textContent = "Guardando en servidor...";
+    statusElement.className = "text-base font-bold text-cyan-400 mt-2";
+    finishBtn.disabled = true;
+
+    // Enviar a la API de Laravel
+    await guardarSesionEnBackend(secondsElapsed, jumpCount, finalSpm, estimatedCalories);
+
+    finishBtn.disabled = false;
+    statusElement.textContent = `¡Completado! ${jumpCount} saltos`;
+    statusElement.className = "text-base font-bold text-emerald-400 mt-2";
+
+    // Reajustar visibilidad de botones
+    finishBtn.classList.add('hidden');
+    pauseBtn.classList.add('hidden');
+    startBtn.classList.remove('hidden');
+    startBtn.textContent = "Nuevo Entrenamiento";
+});
 
 // --- Control de Modo Oscuro / Claro ---
 const themeToggleBtn = document.getElementById('themeToggleBtn');
@@ -264,7 +320,7 @@ themeToggleBtn.addEventListener('click', () => {
 
 async function guardarSesionEnBackend(duracionSegundos, totalSaltos, promedioSpm, calorias) {
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/sessions', {
+    const response = await fetch(`${API_BASE_URL}/sessions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -287,17 +343,5 @@ async function guardarSesionEnBackend(duracionSegundos, totalSaltos, promedioSpm
     }
   } catch (error) {
     console.error('Error al conectar con la API de Laravel:', error);
-  }
-}
-
-
-async function cargarHistorialSesiones() {
-  try {
-    const res = await fetch('http://127.0.0.1:8000/api/sessions');
-    const { data } = await res.json();
-    console.log('Historial recibido:', data);
-    // Aquí puedes renderizar la lista o actualizar tus tarjetas métricas
-  } catch (err) {
-    console.error('Error cargando historial:', err);
   }
 }

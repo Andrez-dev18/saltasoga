@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use App\Models\JumpSession;
 
@@ -11,13 +12,35 @@ class JumpSessionController extends Controller
     /**
      * devuelve el historial de sessiones de salto
      */
-    public function index()
+    public function index(Request $request)
     {
-        $sessions = JumpSession::latest('completed_at')->take(20)->get();
+        // 1. Validar fechas opcionales
+        $request->validate([
+            'from' => 'nullable|date_format:Y-m-d',
+            'to'   => 'nullable|date_format:Y-m-d|after_or_equal:from',
+        ]);
+
+        // 2. Si no se envían, por defecto toma los últimos 7 días
+        $from = $request->filled('from')
+            ? Carbon::parse($request->query('from'))->startOfDay()
+            : Carbon::now()->subDays(7)->startOfDay();
+
+        $to = $request->filled('to')
+            ? Carbon::parse($request->query('to'))->endOfDay()
+            : Carbon::now()->endOfDay();
+
+        // 3. Consultar las sesiones en ese rango
+        $sessions = JumpSession::whereBetween('completed_at', [$from, $to])
+            ->latest('completed_at')
+            ->get();
 
         return response()->json([
             'status' => 'success',
-            'data' => $sessions
+            'range'  => [
+                'from' => $from->toDateString(),
+                'to'   => $to->toDateString(),
+            ],
+            'data'   => $sessions
         ], 200);
     }
 

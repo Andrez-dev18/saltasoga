@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="es" class="dark">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SaltaSoga</title>
-  
-  <!-- Configuración de Tailwind para modo oscuro por clase -->
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -19,66 +19,187 @@
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 </head>
-<body class="bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white min-h-screen flex flex-col items-center justify-center p-4 select-none transition-colors duration-200">
 
-  <!-- Métricas principales -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 w-full max-w-lg mb-4 text-center">
-    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-sm transition-colors">
-      <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Saltos</span>
-      <div id="counter" class="text-4xl font-black text-emerald-600 dark:text-emerald-400">0</div>
-    </div>
-    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-sm transition-colors">
-      <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Tiempo</span>
-      <div id="timer" class="text-4xl font-black text-cyan-600 dark:text-cyan-400">00:00</div>
-    </div>
-    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-sm transition-colors">
-      <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Ritmo (SPM)</span>
-      <div id="spm" class="text-4xl font-black text-violet-600 dark:text-violet-400">0</div>
-    </div>
-    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-sm transition-colors">
-      <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Estado</span>
-      <div id="status" class="text-base font-bold text-amber-500 dark:text-yellow-400 mt-2">Listo</div>
-    </div>
-  </div>
+<body
+  class="bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white min-h-screen flex flex-col items-center justify-start p-4 select-none transition-colors duration-200 relative overflow-x-hidden">
 
-  <!-- Contenedor del Canvas con Botones Flotantes -->
-  <div class="relative w-full max-w-lg aspect-[3/4] bg-black rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-800 shadow-2xl">
-    <video id="webcam" class="hidden" playsinline></video>
-    <canvas id="output" class="w-full h-full object-cover"></canvas>
+  <!-- BARRA SUPERIOR PERSISTENTE -->
+  <header class="w-full max-w-lg flex items-center justify-between mb-4 px-1 pt-2">
+    <div class="flex items-center gap-3">
+      <!-- Botón Menú Hamburguesa -->
+      <button id="openMenuBtn"
+        class="p-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-gray-700 dark:text-gray-200" fill="none"
+          viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+      <h1 id="currentViewTitle" class="text-xl font-black tracking-tight text-emerald-600 dark:text-emerald-400">Saltar
+        Soga</h1>
+    </div>
 
-    <!-- Botón Modo Oscuro / Claro (Arriba a la izquierda) -->
-    <button id="themeToggleBtn" class="absolute top-3 left-3 z-20 p-3 bg-white/70 dark:bg-black/50 hover:bg-white dark:hover:bg-black/80 backdrop-blur-md border border-gray-300 dark:border-white/20 rounded-full text-gray-800 dark:text-white transition active:scale-95 shadow-lg">
-      <!-- Ícono Sol (Modo Claro) -->
-      <svg id="sunIcon" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+    <!-- Botón Modo Oscuro / Claro -->
+    <button id="themeToggleBtn"
+      class="p-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-gray-700 dark:text-gray-200 shadow-sm transition active:scale-95">
+      <svg id="sunIcon" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 hidden" fill="none" viewBox="0 0 24 24"
+        stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
       </svg>
-      <!-- Ícono Luna (Modo Oscuro) -->
-      <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+      <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24"
+        stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
       </svg>
     </button>
+  </header>
 
-    <!-- Botón Cambiar Cámara (Arriba a la derecha) -->
-    <button id="switchCamBtn" class="absolute top-3 right-3 z-20 p-3 bg-white/70 dark:bg-black/50 hover:bg-white dark:hover:bg-black/80 backdrop-blur-md border border-gray-300 dark:border-white/20 rounded-full text-gray-800 dark:text-white transition active:scale-95 shadow-lg">
-      <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-      </svg>
-    </button>
-  </div>
+  <!-- ==================== VISTA 1: ENTRENAMIENTO / SALTOS ==================== -->
+  <main id="view-workout" class="w-full max-w-lg flex flex-col items-center">
+    <!-- Métricas principales -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 w-full mb-4 text-center">
+      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-xs">
+        <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Saltos</span>
+        <div id="counter" class="text-4xl font-black text-emerald-600 dark:text-emerald-400">0</div>
+      </div>
+      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-xs">
+        <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Tiempo</span>
+        <div id="timer" class="text-4xl font-black text-cyan-600 dark:text-cyan-400">00:00</div>
+      </div>
+      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-xs">
+        <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Ritmo (SPM)</span>
+        <div id="spm" class="text-4xl font-black text-violet-600 dark:text-violet-400">0</div>
+      </div>
+      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-xs">
+        <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Estado</span>
+        <div id="status" class="text-base font-bold text-amber-500 dark:text-yellow-400 mt-2">Listo</div>
+      </div>
+    </div>
 
-  <!-- Botones de Control -->
-  <div class="flex gap-3 mt-5 w-full max-w-lg">
-    <button id="startBtn" class="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-xl shadow transition">
-      Iniciar
-    </button>
-    <button id="pauseBtn" class="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-xl shadow transition hidden">
-      Pausar
-    </button>
-    <button id="resetBtn" class="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition">
-      Reiniciar
-    </button>
-  </div>
+    <!-- Contenedor del Canvas / Cámara -->
+    <div
+      class="relative w-full aspect-[3/4] bg-black rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-800 shadow-xl">
+      <video id="webcam" class="hidden" playsinline></video>
+      <canvas id="output" class="w-full h-full object-cover"></canvas>
+
+      <!-- Botón Cambiar Cámara (Flotante) -->
+      <button id="switchCamBtn"
+        class="absolute top-3 right-3 z-20 p-3 bg-white/70 dark:bg-black/50 hover:bg-white dark:hover:bg-black/80 backdrop-blur-md border border-gray-300 dark:border-white/20 rounded-full text-gray-800 dark:text-white transition active:scale-95 shadow-lg">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Botones de Control -->
+    <div class="flex gap-3 mt-4 w-full">
+      <button id="startBtn"
+        class="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-xl shadow transition">
+        Iniciar
+      </button>
+      <button id="pauseBtn"
+        class="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-xl shadow transition hidden">
+        Pausar
+      </button>
+      <button id="finishBtn"
+        class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow transition hidden">
+        Terminar
+      </button>
+      <button id="resetBtn"
+        class="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition">
+        Reiniciar
+      </button>
+    </div>
+  </main>
+
+  <!-- ==================== VISTA 2: LISTADO DE SESIONES ==================== -->
+  <main id="view-history" class="w-full max-w-lg hidden flex flex-col">
+    <div class="flex justify-between items-center mb-3 px-1">
+      <span class="text-sm font-bold text-gray-700 dark:text-gray-300">Historial de entrenamientos</span>
+      <button id="refreshHistoryBtn"
+        class="text-xs px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold rounded-lg transition">
+        Restablecer
+      </button>
+    </div>
+
+    <!-- Filtro de Rango de Fechas -->
+    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-3 mb-4 shadow-xs">
+      <div class="grid grid-cols-2 gap-2 mb-2">
+        <div>
+          <label for="filterFrom"
+            class="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase">Desde</label>
+          <input type="date" id="filterFrom"
+            class="w-full text-xs p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 focus:outline-hidden focus:ring-2 focus:ring-emerald-500">
+        </div>
+        <div>
+          <label for="filterTo"
+            class="block text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase">Hasta</label>
+          <input type="date" id="filterTo"
+            class="w-full text-xs p-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 focus:outline-hidden focus:ring-2 focus:ring-emerald-500">
+        </div>
+      </div>
+      <button id="applyFilterBtn"
+        class="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-black text-xs font-bold rounded-lg shadow-xs transition">
+        Filtrar
+      </button>
+    </div>
+
+    <!-- Lista scrolleable de tarjetas de sesiones -->
+    <div id="sessionsList" class="space-y-3 w-full pb-8"></div>
+  </main>
+
+  <!-- OVERLAY OSCURO DETRÁS DEL MENÚ -->
+  <div id="menuOverlay"
+    class="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 hidden opacity-0 transition-opacity duration-300"></div>
+
+  <!-- PANEL LATERAL DE NAVEGACIÓN (DRAWER) -->
+  <aside id="sideMenu"
+    class="fixed top-0 left-0 h-full w-72 bg-white dark:bg-gray-900 shadow-2xl z-50 transform -translate-x-full transition-transform duration-300 flex flex-col border-r border-gray-200 dark:border-gray-800">
+    <!-- Header del Menú -->
+    <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+        <span class="font-black text-gray-900 dark:text-white">SaltaSoga App</span>
+      </div>
+      <button id="closeMenuBtn" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Opciones de Navegación -->
+    <nav class="p-4 space-y-2 flex-1">
+      <button id="navWorkoutBtn"
+        class="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Entrenar / Saltos
+      </button>
+
+      <button id="navHistoryBtn"
+        class="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+        </svg>
+        Historial de Sesiones
+      </button>
+    </nav>
+
+    <!-- Footer del Drawer -->
+    <div class="p-4 border-t border-gray-200 dark:border-gray-800 text-xs text-gray-400 text-center">
+      Backend: Laravel 11/12 REST API
+    </div>
+  </aside>
 
   <script src="app.js"></script>
+  <script src="menu.js"></script>
 </body>
+
 </html>
