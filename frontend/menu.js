@@ -6,13 +6,15 @@ const sideMenu = document.getElementById('sideMenu');
 
 const viewWorkout = document.getElementById('view-workout');
 const viewHistory = document.getElementById('view-history');
+const viewCalibration = document.getElementById('view-calibration');
 const currentViewTitle = document.getElementById('currentViewTitle');
 
 const navWorkoutBtn = document.getElementById('navWorkoutBtn');
 const navHistoryBtn = document.getElementById('navHistoryBtn');
+const navCalibrationBtn = document.getElementById('navCalibrationBtn');
 const refreshHistoryBtn = document.getElementById('refreshHistoryBtn');
 
-// Referencias a los nuevos inputs de filtro
+// Referencias a los inputs de filtro
 const filterFrom = document.getElementById('filterFrom');
 const filterTo = document.getElementById('filterTo');
 const applyFilterBtn = document.getElementById('applyFilterBtn');
@@ -24,8 +26,8 @@ function setDefaultFilterDates() {
   hace7Dias.setDate(hoy.getDate() - 7);
 
   // Formato YYYY-MM-DD
-  filterTo.value = hoy.toISOString().split('T')[0];
-  filterFrom.value = hace7Dias.toISOString().split('T')[0];
+  if (filterTo) filterTo.value = hoy.toISOString().split('T')[0];
+  if (filterFrom) filterFrom.value = hace7Dias.toISOString().split('T')[0];
 }
 
 // Escuchar el clic del botón filtrar
@@ -60,40 +62,81 @@ function toggleDrawer(open) {
   }
 }
 
+// Estilos de botones de navegación
+const NAV_ACTIVE_CLASS = "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 transition";
+const NAV_INACTIVE_CLASS = "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition";
+
 // Alternar entre las pantallas
 function switchView(viewName) {
   toggleDrawer(false);
 
-  if (viewName === 'workout') {
-    viewWorkout.style.display = 'flex';
-    viewHistory.style.display = 'none';
-    viewWorkout.classList.remove('hidden');
-    viewHistory.classList.add('hidden');
-    currentViewTitle.textContent = 'Saltar Soga';
+  // Detener cámaras y temporizadores de vistas previas
+  if (viewName !== 'workout') {
+    if (typeof stopCamera === 'function') stopCamera();
+    if (typeof timerInterval !== 'undefined') clearInterval(timerInterval);
+  }
+  if (viewName !== 'calibration') {
+    if (typeof window.stopCalibrationCamera === 'function') window.stopCalibrationCamera();
+  }
 
-    navWorkoutBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 transition";
-    navHistoryBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition";
-  } else if (viewName === 'history') {
-    // Apagar cámara si estaba corriendo
-    if (typeof stopCamera === 'function') {
-      stopCamera();
-    }
-    if (typeof timerInterval !== 'undefined') {
-      clearInterval(timerInterval);
-    }
-
+  // Ocultar todas las vistas primero
+  if (viewWorkout) {
     viewWorkout.style.display = 'none';
-    viewHistory.style.display = 'flex';
     viewWorkout.classList.add('hidden');
-    viewHistory.classList.remove('hidden');
-    currentViewTitle.textContent = 'Historial de Sesiones';
+  }
+  if (viewHistory) {
+    viewHistory.style.display = 'none';
+    viewHistory.classList.add('hidden');
+  }
+  if (viewCalibration) {
+    viewCalibration.style.display = 'none';
+    viewCalibration.classList.add('hidden');
+  }
 
-    navHistoryBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 transition";
-    navWorkoutBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition";
+  // Restablecer estilos de botones del menú
+  if (navWorkoutBtn) navWorkoutBtn.className = NAV_INACTIVE_CLASS;
+  if (navHistoryBtn) navHistoryBtn.className = NAV_INACTIVE_CLASS;
+  if (navCalibrationBtn) navCalibrationBtn.className = NAV_INACTIVE_CLASS;
+
+  // Activar la vista seleccionada
+  if (viewName === 'workout') {
+    if (viewWorkout) {
+      viewWorkout.style.display = 'flex';
+      viewWorkout.classList.remove('hidden');
+    }
+    if (currentViewTitle) currentViewTitle.textContent = 'Saltar Soga';
+    if (navWorkoutBtn) navWorkoutBtn.className = NAV_ACTIVE_CLASS;
+
+    // Recargar configuración (por si cambió en calibración)
+    if (typeof window.reloadWorkoutConfig === 'function') {
+      window.reloadWorkoutConfig();
+    }
+  } else if (viewName === 'calibration') {
+    if (viewCalibration) {
+      viewCalibration.style.display = 'flex';
+      viewCalibration.classList.remove('hidden');
+    }
+    if (currentViewTitle) currentViewTitle.textContent = 'Calibración & Modos';
+    if (navCalibrationBtn) navCalibrationBtn.className = NAV_ACTIVE_CLASS;
+
+    // Iniciar cámara de calibración
+    if (typeof window.startCalibration === 'function') {
+      window.startCalibration();
+    }
+  } else if (viewName === 'history') {
+    if (viewHistory) {
+      viewHistory.style.display = 'flex';
+      viewHistory.classList.remove('hidden');
+    }
+    if (currentViewTitle) currentViewTitle.textContent = 'Historial de Sesiones';
+    if (navHistoryBtn) navHistoryBtn.className = NAV_ACTIVE_CLASS;
 
     cargarHistorialSesiones();
   }
 }
+
+// Exportar globalmente
+window.switchView = switchView;
 
 // Listeners de navegación
 if (openMenuBtn) openMenuBtn.addEventListener('click', () => toggleDrawer(true));
@@ -101,10 +144,14 @@ if (closeMenuBtn) closeMenuBtn.addEventListener('click', () => toggleDrawer(fals
 if (menuOverlay) menuOverlay.addEventListener('click', () => toggleDrawer(false));
 
 if (navWorkoutBtn) navWorkoutBtn.addEventListener('click', () => switchView('workout'));
+if (navCalibrationBtn) navCalibrationBtn.addEventListener('click', () => switchView('calibration'));
 if (navHistoryBtn) navHistoryBtn.addEventListener('click', () => switchView('history'));
-if (refreshHistoryBtn) refreshHistoryBtn.addEventListener('click', cargarHistorialSesiones);
+if (refreshHistoryBtn) refreshHistoryBtn.addEventListener('click', () => {
+  setDefaultFilterDates();
+  cargarHistorialSesiones();
+});
 
-// Modificar cargarHistorialSesiones para aceptar 'from' y 'to'
+// Cargar historial de sesiones desde backend
 async function cargarHistorialSesiones(from = null, to = null) {
   const container = document.getElementById('sessionsList');
   if (!container) return;

@@ -21,10 +21,10 @@
 </head>
 
 <body
-  class="bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white min-h-screen flex flex-col items-center justify-start p-4 select-none transition-colors duration-200 relative overflow-x-hidden">
+  class="bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-white h-screen h-[100dvh] max-h-screen flex flex-col items-center justify-between p-2.5 sm:p-4 select-none transition-colors duration-200 relative overflow-hidden">
 
   <!-- BARRA SUPERIOR PERSISTENTE -->
-  <header class="w-full max-w-lg flex items-center justify-between mb-4 px-1 pt-2">
+  <header class="w-full max-w-xl flex items-center justify-between mb-1.5 px-1 pt-1 shrink-0">
     <div class="flex items-center gap-3">
       <!-- Botón Menú Hamburguesa -->
       <button id="openMenuBtn"
@@ -55,32 +55,44 @@
   </header>
 
   <!-- ==================== VISTA 1: ENTRENAMIENTO / SALTOS ==================== -->
-  <main id="view-workout" class="w-full max-w-lg flex flex-col items-center">
-    <!-- Métricas principales -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 w-full mb-4 text-center">
-      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-xs">
-        <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Saltos</span>
-        <div id="counter" class="text-4xl font-black text-emerald-600 dark:text-emerald-400">0</div>
+  <main id="view-workout" class="w-full max-w-xl flex-1 flex flex-col items-center justify-between min-h-0">
+    <!-- Métricas principales compactas (1 sola fila para maximizar espacio vertical) -->
+    <div class="grid grid-cols-4 gap-1.5 sm:gap-2.5 w-full mb-1.5 text-center shrink-0">
+      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 py-1.5 px-1 sm:py-2 rounded-xl shadow-xs flex flex-col justify-center">
+        <span class="text-[10px] sm:text-xs uppercase text-gray-500 dark:text-gray-400 font-bold leading-tight truncate">Saltos</span>
+        <div id="counter" class="text-xl sm:text-2xl md:text-3xl font-black text-emerald-600 dark:text-emerald-400 leading-tight mt-0.5">0</div>
       </div>
-      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-xs">
-        <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Tiempo</span>
-        <div id="timer" class="text-4xl font-black text-cyan-600 dark:text-cyan-400">00:00</div>
+      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 py-1.5 px-1 sm:py-2 rounded-xl shadow-xs flex flex-col justify-center">
+        <span class="text-[10px] sm:text-xs uppercase text-gray-500 dark:text-gray-400 font-bold leading-tight truncate">Tiempo</span>
+        <div id="timer" class="text-xl sm:text-2xl md:text-3xl font-black text-cyan-600 dark:text-cyan-400 leading-tight mt-0.5">00:00</div>
       </div>
-      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-xs">
-        <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Ritmo (SPM)</span>
-        <div id="spm" class="text-4xl font-black text-violet-600 dark:text-violet-400">0</div>
+      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 py-1.5 px-1 sm:py-2 rounded-xl shadow-xs flex flex-col justify-center">
+        <span class="text-[10px] sm:text-xs uppercase text-gray-500 dark:text-gray-400 font-bold leading-tight truncate">Ritmo</span>
+        <div id="spm" class="text-xl sm:text-2xl md:text-3xl font-black text-violet-600 dark:text-violet-400 leading-tight mt-0.5">0</div>
       </div>
-      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 rounded-xl shadow-xs">
-        <span class="text-xs uppercase text-gray-500 dark:text-gray-400 font-bold">Estado</span>
-        <div id="status" class="text-base font-bold text-amber-500 dark:text-yellow-400 mt-2">Listo</div>
+      <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 py-1.5 px-1 sm:py-2 rounded-xl shadow-xs flex flex-col justify-center">
+        <span class="text-[10px] sm:text-xs uppercase text-gray-500 dark:text-gray-400 font-bold leading-tight truncate">Estado</span>
+        <div id="status" class="text-xs sm:text-sm md:text-base font-bold text-amber-500 dark:text-yellow-400 leading-tight truncate mt-1">Listo</div>
       </div>
     </div>
 
-    <!-- Contenedor del Canvas / Cámara -->
+    <!-- Contenedor del Canvas / Cámara (flex-1 para expandirse y llenar todo el alto disponible) -->
     <div
-      class="relative w-full aspect-[3/4] bg-black rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-800 shadow-xl">
+      class="relative w-full flex-1 min-h-0 bg-black rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-800 shadow-xl my-1">
       <video id="webcam" class="hidden" playsinline></video>
-      <canvas id="output" class="w-full h-full object-cover"></canvas>
+      <canvas id="output" class="w-full h-full object-cover transform-gpu"></canvas>
+
+      <!-- Badge flotante de estado y guía de postura -->
+      <div id="poseGuideBadge"
+        class="absolute top-3 left-3 z-20 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur-md border border-white/20 rounded-xl text-white shadow-lg pointer-events-none transition-all duration-300">
+        <span id="poseGuideDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="poseGuideText" class="text-xs font-bold tracking-wide">Inicia para calibrar</span>
+      </div>
+
+      <!-- Guía sutil de encuadre -->
+      <div id="guideFrame"
+        class="absolute inset-4 rounded-xl border-2 border-dashed border-white/20 pointer-events-none transition-colors duration-300">
+      </div>
 
       <!-- Botón Cambiar Cámara (Flotante) -->
       <button id="switchCamBtn"
@@ -92,30 +104,30 @@
       </button>
     </div>
 
-    <!-- Botones de Control -->
-    <div class="flex gap-3 mt-4 w-full">
+    <!-- Botones de Control (fijados abajo) -->
+    <div class="flex gap-2.5 w-full shrink-0 pb-1 pt-1">
       <button id="startBtn"
-        class="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-xl shadow transition">
+        class="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-xl shadow transition active:scale-95">
         Iniciar
       </button>
       <button id="pauseBtn"
-        class="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-xl shadow transition hidden">
+        class="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-xl shadow transition hidden active:scale-95">
         Pausar
       </button>
       <button id="finishBtn"
-        class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow transition hidden">
+        class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow transition hidden active:scale-95">
         Terminar
       </button>
       <button id="resetBtn"
-        class="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition">
+        class="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition active:scale-95">
         Reiniciar
       </button>
     </div>
   </main>
 
   <!-- ==================== VISTA 2: LISTADO DE SESIONES ==================== -->
-  <main id="view-history" class="w-full max-w-lg hidden flex flex-col">
-    <div class="flex justify-between items-center mb-3 px-1">
+  <main id="view-history" class="w-full max-w-xl hidden flex-1 flex-col min-h-0 overflow-y-auto pb-6">
+    <div class="flex justify-between items-center mb-3 px-1 shrink-0">
       <span class="text-sm font-bold text-gray-700 dark:text-gray-300">Historial de entrenamientos</span>
       <button id="refreshHistoryBtn"
         class="text-xs px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold rounded-lg transition">
@@ -124,7 +136,7 @@
     </div>
 
     <!-- Filtro de Rango de Fechas -->
-    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-3 mb-4 shadow-xs">
+    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-3 mb-4 shadow-xs shrink-0">
       <div class="grid grid-cols-2 gap-2 mb-2">
         <div>
           <label for="filterFrom"
@@ -147,6 +159,69 @@
 
     <!-- Lista scrolleable de tarjetas de sesiones -->
     <div id="sessionsList" class="space-y-3 w-full pb-8"></div>
+  </main>
+
+  <!-- ==================== VISTA 3: CALIBRACIÓN & MODOS ==================== -->
+  <main id="view-calibration" class="w-full max-w-xl hidden flex-1 flex-col justify-between min-h-0">
+    <!-- Selector de Modo (Tabs) -->
+    <div class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-1 rounded-xl shadow-xs flex gap-1 mb-1.5 shrink-0">
+      <button id="modeAutoBtn" type="button"
+        class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 bg-emerald-500 text-black shadow-xs">
+        <span>🧍</span>
+        <span>Cuerpo Completo</span>
+      </button>
+      <button id="modeLineBtn" type="button"
+        class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+        <span>📏</span>
+        <span>Línea Límite</span>
+      </button>
+    </div>
+
+    <!-- Descripción del modo activo -->
+    <div id="modeDescription" class="text-[11px] text-gray-600 dark:text-gray-400 mb-1 px-1 shrink-0 text-center font-medium">
+      Modo Cuerpo Completo: requiere estar de pie a 2.5-3m para ver cabeza y pies.
+    </div>
+
+    <!-- Contenedor de la cámara de calibración -->
+    <div id="calibrationCamContainer"
+      class="relative w-full flex-1 min-h-0 bg-black rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-800 shadow-xl my-1 touch-none">
+      <video id="calibrationWebcam" class="hidden" playsinline></video>
+      <canvas id="calibrationCanvas" class="w-full h-full object-cover transform-gpu"></canvas>
+
+      <!-- Badge de feedback en vivo de prueba -->
+      <div id="calibFeedbackBadge"
+        class="absolute top-3 left-3 z-20 flex items-center gap-2 px-3 py-1.5 bg-black/70 backdrop-blur-md border border-white/20 rounded-xl text-white text-xs font-semibold shadow-lg pointer-events-none">
+        <span id="calibFeedbackDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+        <span id="calibFeedbackText">Alineando cuerpo...</span>
+      </div>
+
+      <!-- Botón flotante para auto-posicionar línea -->
+      <button id="autoPositionBtn" type="button"
+        class="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/90 hover:bg-emerald-500 text-black text-xs font-bold rounded-full shadow-lg backdrop-blur-md transition active:scale-95">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        <span>Auto-ajustar</span>
+      </button>
+
+      <!-- Instrucción flotante inferior -->
+      <div class="absolute bottom-3 left-0 right-0 z-20 flex justify-center pointer-events-none px-4">
+        <span id="calibInstructionText" class="text-[11px] font-semibold bg-black/70 backdrop-blur-md text-white/90 px-3 py-1 rounded-full border border-white/10 shadow">
+          Arrastra la línea con el dedo para ajustar la altura
+        </span>
+      </div>
+    </div>
+
+    <!-- Botón Guardar y Salir a Entrenar -->
+    <div class="flex gap-2.5 w-full shrink-0 pb-1 pt-1">
+      <button id="saveCalibrationBtn" type="button"
+        class="flex-1 py-3 bg-emerald-500 hover:bg-emerald-600 text-black font-bold rounded-xl shadow transition active:scale-95 flex items-center justify-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        <span>Guardar y Comenzar a Entrenar</span>
+      </button>
+    </div>
   </main>
 
   <!-- OVERLAY OSCURO DETRÁS DEL MENÚ -->
@@ -182,6 +257,15 @@
         Entrenar / Saltos
       </button>
 
+      <button id="navCalibrationBtn"
+        class="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+        </svg>
+        Calibración & Modos
+      </button>
+
       <button id="navHistoryBtn"
         class="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -198,8 +282,9 @@
     </div>
   </aside>
 
-  <script src="app.js?v=1.0"></script>
-  <script src="menu.js?v=1.0"></script>
+  <script src="calibration.js?v=1.0"></script>
+  <script src="app.js?v=2.3"></script>
+  <script src="menu.js?v=1.1"></script>
 </body>
 
 </html>
