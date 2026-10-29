@@ -166,14 +166,33 @@ function drawLineGuide(detectedHipY) {
   calibCtx.lineWidth = 2;
   calibCtx.stroke();
 
-  // Etiqueta flotante sobre la línea
-  calibCtx.fillStyle = 'rgba(0,0,0,0.7)';
-  calibCtx.fillRect(handleX - 45, linePixelY - 26, 90, 20);
+  // Etiqueta flotante sobre la línea (des-espejada para contrarrestar el scaleX(-1) del canvas)
+  calibCtx.save();
+  calibCtx.translate(handleX, linePixelY - 16);
+  calibCtx.scale(-1, 1); // Invierte horizontalmente el texto para que se lea al derecho
+
+  const labelText = isCrossing ? '¡SUPERADO!' : 'LÍNEA SALTO';
+  calibCtx.fillStyle = isCrossing ? 'rgba(16, 185, 129, 0.95)' : 'rgba(0, 0, 0, 0.75)';
+
+  const pillWidth = 96;
+  const pillHeight = 22;
+  const rx = -pillWidth / 2;
+  const ry = -pillHeight / 2;
+
+  calibCtx.beginPath();
+  if (calibCtx.roundRect) {
+    calibCtx.roundRect(rx, ry, pillWidth, pillHeight, 6);
+  } else {
+    calibCtx.rect(rx, ry, pillWidth, pillHeight);
+  }
+  calibCtx.fill();
+
   calibCtx.fillStyle = '#ffffff';
-  calibCtx.font = 'bold 11px sans-serif';
+  calibCtx.font = 'bold 11px system-ui, -apple-system, sans-serif';
   calibCtx.textAlign = 'center';
   calibCtx.textBaseline = 'middle';
-  calibCtx.fillText(isCrossing ? '¡SUPERADO!' : 'LÍNEA SALTO', handleX, linePixelY - 16);
+  calibCtx.fillText(labelText, 0, 0);
+  calibCtx.restore();
 
   calibCtx.restore();
 }
