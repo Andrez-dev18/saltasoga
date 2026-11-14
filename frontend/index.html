@@ -163,8 +163,8 @@
 
   <!-- ==================== VISTA 3: CALIBRACIÓN & MODOS ==================== -->
   <main id="view-calibration" class="w-full max-w-xl hidden flex-1 flex-col justify-between min-h-0">
-    <!-- Selector de Modo (Tabs) -->
-    <div class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-1 rounded-xl shadow-xs flex gap-1 mb-1.5 shrink-0">
+    <!-- Selector de Modo (Tabs compactas) -->
+    <div class="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-1 rounded-xl shadow-xs flex gap-1 mb-1 shrink-0">
       <button id="modeAutoBtn" type="button"
         class="flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 bg-emerald-500 text-black shadow-xs">
         <span>🧍</span>
@@ -177,38 +177,67 @@
       </button>
     </div>
 
-    <!-- Descripción del modo activo -->
-    <div id="modeDescription" class="text-[11px] text-gray-600 dark:text-gray-400 mb-1 px-1 shrink-0 text-center font-medium">
-      Modo Cuerpo Completo: requiere estar de pie a 2.5-3m para ver cabeza y pies.
+    <!-- Opciones del Modo Línea: Tiempo y Altura de Salto (Limpias y organizadas) -->
+    <div id="lineModeOptions" class="w-full grid grid-cols-2 gap-1.5 mb-1 shrink-0 text-[11px]">
+      <!-- Selector de cuenta regresiva -->
+      <div class="flex items-center justify-between bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-2.5 py-1 rounded-xl shadow-2xs">
+        <span class="text-gray-400 font-semibold text-[10px]">⏱️ Espera</span>
+        <div class="flex gap-1">
+          <button id="timer3sBtn" type="button" class="py-0.5 px-2 rounded-md font-bold transition text-[10px] bg-emerald-500 text-black">3s</button>
+          <button id="timer5sBtn" type="button" class="py-0.5 px-2 rounded-md font-bold transition text-[10px] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">5s</button>
+          <button id="timer10sBtn" type="button" class="py-0.5 px-2 rounded-md font-bold transition text-[10px] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">10s</button>
+        </div>
+      </div>
+
+      <!-- Selector de Altura de Salto -->
+      <div class="flex items-center justify-between bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 px-2.5 py-1 rounded-xl shadow-2xs">
+        <span class="text-gray-400 font-semibold text-[10px]">📏 Salto</span>
+        <div class="flex gap-1">
+          <button id="sensShortBtn" type="button" class="py-0.5 px-1.5 rounded-md font-bold transition text-[10px] bg-emerald-500 text-black" title="Salto corto y veloz (ideal soga)">Corto</button>
+          <button id="sensNormalBtn" type="button" class="py-0.5 px-1.5 rounded-md font-bold transition text-[10px] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white" title="Salto medio">Medio</button>
+          <button id="sensHighBtn" type="button" class="py-0.5 px-1.5 rounded-md font-bold transition text-[10px] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white" title="Salto alto">Alto</button>
+        </div>
+      </div>
     </div>
 
-    <!-- Contenedor de la cámara de calibración -->
+    <!-- Contenedor de la cámara de calibración (Limpio y despejado) -->
     <div id="calibrationCamContainer"
       class="relative w-full flex-1 min-h-0 bg-black rounded-2xl overflow-hidden border border-gray-300 dark:border-gray-800 shadow-xl my-1 touch-none">
       <video id="calibrationWebcam" class="hidden" playsinline></video>
       <canvas id="calibrationCanvas" class="w-full h-full object-cover transform-gpu"></canvas>
 
-      <!-- Badge de feedback en vivo de prueba -->
+      <!-- Badge de feedback compacto en la esquina superior izquierda -->
       <div id="calibFeedbackBadge"
-        class="absolute top-3 left-3 z-20 flex items-center gap-2 px-3 py-1.5 bg-black/70 backdrop-blur-md border border-white/20 rounded-xl text-white text-xs font-semibold shadow-lg pointer-events-none">
-        <span id="calibFeedbackDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-        <span id="calibFeedbackText">Alineando cuerpo...</span>
+        class="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5 px-2.5 py-1 bg-black/75 backdrop-blur-md border border-white/20 rounded-full text-white text-[11px] font-semibold shadow-md pointer-events-none max-w-[140px] sm:max-w-[180px]">
+        <span id="calibFeedbackDot" class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+        <span id="calibFeedbackText" class="truncate">Listo</span>
       </div>
 
-      <!-- Botón flotante para auto-posicionar línea -->
+      <!-- Botón flotante para auto-posicionar línea con temporizador -->
       <button id="autoPositionBtn" type="button"
-        class="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/90 hover:bg-emerald-500 text-black text-xs font-bold rounded-full shadow-lg backdrop-blur-md transition active:scale-95">
+        class="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5 px-3 py-1 bg-emerald-500 hover:bg-emerald-600 text-black text-xs font-bold rounded-full shadow-lg backdrop-blur-md transition active:scale-95 shrink-0">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <span>Auto-ajustar</span>
+        <span id="autoPositionBtnText">Calibrar (3s)</span>
       </button>
 
-      <!-- Instrucción flotante inferior -->
-      <div class="absolute bottom-3 left-0 right-0 z-20 flex justify-center pointer-events-none px-4">
-        <span id="calibInstructionText" class="text-[11px] font-semibold bg-black/70 backdrop-blur-md text-white/90 px-3 py-1 rounded-full border border-white/10 shadow">
-          Arrastra la línea con el dedo para ajustar la altura
+      <!-- Overlay de cuenta regresiva centrado -->
+      <div id="calibCountdownOverlay"
+        class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs transition-opacity duration-200 hidden opacity-0 pointer-events-auto">
+        <div class="relative flex items-center justify-center">
+          <div id="calibCountdownNumber"
+            class="text-7xl font-black text-emerald-400 drop-shadow-[0_0_25px_rgba(52,211,153,0.8)]">
+            3
+          </div>
+        </div>
+        <span id="calibCountdownMsg" class="text-xs sm:text-sm font-bold text-white mt-3 px-4 py-1.5 bg-black/60 rounded-full border border-white/20 text-center mx-4">
+          Ubícate en tu posición de salto
         </span>
+        <button id="cancelCountdownBtn" type="button"
+          class="mt-4 px-3 py-1 bg-white/10 hover:bg-white/20 text-white/80 hover:text-white text-xs font-semibold rounded-lg border border-white/20 transition">
+          Cancelar
+        </button>
       </div>
     </div>
 
@@ -282,8 +311,8 @@
     </div>
   </aside>
 
-  <script src="calibration.js?v=1.1"></script>
-  <script src="app.js?v=2.3"></script>
+  <script src="calibration.js?v=1.5"></script>
+  <script src="app.js?v=2.6"></script>
   <script src="menu.js?v=1.1"></script>
 </body>
 

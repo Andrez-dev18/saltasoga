@@ -51,8 +51,11 @@ window.reloadWorkoutConfig = loadWorkoutConfig;
 // Variables de estado de saltos
 let jumpCount = 0;
 let isInAir = false;
+let airStartTime = 0;
 let lastJumpTimestamp = 0;
 const MIN_JUMP_INTERVAL_MS = 220;
+const MIN_AIR_DURATION_MS = 90;   // Un salto de soga real requiere al menos ~90-100ms en el aire
+const MAX_AIR_DURATION_MS = 1500; // Si supera 1.5s arriba no es un salto de soga, se anula
 
 // Variables de calibración, encuadre y estabilidad (Modo Automático)
 let isCalibrated = false;
@@ -60,7 +63,7 @@ let calibrationStartTime = null;
 const CALIBRATION_DURATION_MS = 1000; // 1 segundo quieto de pie para calibrar
 let calibrationSamples = { hips: [], ankles: [] };
 let lostTrackingCount = 0;
-const MAX_LOST_FRAMES = 12; // Si se pierde el cuerpo completo ~0.4s, descalibra y no cuenta
+const MAX_LOST_FRAMES = 8; // Si se pierde la persona por ~0.25s, suspender estado en el aire y re-alinear
 
 let baselineHipY = null;
 let baselineAnkleY = null;
@@ -90,7 +93,24 @@ function resetCalibration() {
     baselineHipY = null;
     baselineAnkleY = null;
     isInAir = false;
+    airStartTime = 0;
     lostTrackingCount = 0;
+}
+
+// Manejador centralizado cuando no hay persona frente a la cámara o se pierde el encuadre
+function handleMissingPerson(message) {
+    lostTrackingCount++;
+    // Si se pierde tracking por más de ~120-150ms, cancelar estado en el aire para evitar aterrizajes falsos
+    if (lostTrackingCount >= 4) {
+        isInAir = false;
+        airStartTime = 0;
+    }
+    if (lostTrackingCount > MAX_LOST_FRAMES) {
+        if (workoutConfig.mode === 'auto') {
+            resetCalibration();
+        }
+        updatePoseGuide('searching', message);
+    }
 }
 
 // Actualizador visual de la guía y estado
@@ -210,21 +230,14 @@ function onResults(results) {
     // No se necesita clearRect: drawImage sobreescribe completamente el canvas ahorrando ciclos de GPU
     canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
 
-    if (results.poseLandmarks && isRunning && !isPaused) {
+    if (isRunning && !isPaused) {
+        const now = performance.now();
         const landmarks = results.poseLandmarks;
 
-        // =====================================================================
-        // MODO B: LÍNEA LÍMITE (Espacio reducido / Plano medio)
-        // =====================================================================
+        // 1. DIBUJAR LÍNEA GUÍA SI ESTÁ EN MODO LÍNEA (Incluso antes de validar presencia humana)
         if (workoutConfig.mode === 'line') {
             const thresholdY = workoutConfig.lineY || 0.52;
             const thresholdPixelY = thresholdY * canvasElement.height;
-
-            const leftHip = landmarks[23];
-            const rightHip = landmarks[24];
-            const hipsVisible = leftHip && rightHip && leftHip.visibility > 0.45 && rightHip.visibility > 0.45;
-
-            // Dibujar la línea de umbral en pantalla
             const lineColor = isInAir ? '#10b981' : 'rgba(6, 182, 212, 0.85)';
             canvasCtx.save();
             canvasCtx.strokeStyle = lineColor;
@@ -237,24 +250,59 @@ function onResults(results) {
             canvasCtx.lineTo(canvasElement.width, thresholdPixelY);
             canvasCtx.stroke();
             canvasCtx.restore();
+        }
 
-            if (!hipsVisible) {
-                lostTrackingCount++;
-                if (lostTrackingCount > MAX_LOST_FRAMES) {
-                    isInAir = false;
-                    updatePoseGuide('searching', 'Ponte frente a la cámara (cintura visible)');
-                }
-                canvasCtx.restore();
-                return;
-            }
+        // 2. GATEKEEPER DE PRESENCIA HUMANA REAL (Evita detección de sombras, paredes y cámaras vacías)
+        if (!landmarks) {
+            handleMissingPerson(workoutConfig.mode === 'line' 
+                ? 'Ponte frente a la cámara (cintura visible)' 
+                : 'Muestra cuerpo completo (pies a cabeza)');
+            canvasCtx.restore();
+            return;
+        }
 
-            lostTrackingCount = 0;
-            const currentHipY = (leftHip.y + rightHip.y) / 2;
+        const nose = landmarks[0];
+        const leftShoulder = landmarks[11];
+        const rightShoulder = landmarks[12];
+        const leftHip = landmarks[23];
+        const rightHip = landmarks[24];
 
-            // Dibujar punto en la cadera para feedback visual
+        const shouldersVisible = leftShoulder && rightShoulder && leftShoulder.visibility > 0.48 && rightShoulder.visibility > 0.48;
+        const hipsVisible = leftHip && rightHip && leftHip.visibility > 0.48 && rightHip.visibility > 0.48;
+        const headVisible = nose && nose.visibility > 0.35;
+
+        const currentHipY = (leftHip && rightHip) ? (leftHip.y + rightHip.y) / 2 : 0;
+        const shoulderY = (leftShoulder && rightShoulder) ? (leftShoulder.y + rightShoulder.y) / 2 : 0;
+        const torsoHeight = Math.abs(currentHipY - shoulderY);
+
+        // Anatomía coherente: la cadera debe estar por debajo del hombro y con proporción humana
+        const hasValidAnatomy = currentHipY > shoulderY && torsoHeight > 0.08 && torsoHeight < 0.65;
+        const hasHumanPresence = shouldersVisible && hipsVisible && (headVisible || torsoHeight > 0.12) && hasValidAnatomy;
+
+        if (!hasHumanPresence) {
+            handleMissingPerson(workoutConfig.mode === 'line' 
+                ? 'Ponte frente a la cámara (torso y cintura)' 
+                : 'Muestra cuerpo completo (pies a cabeza)');
+            canvasCtx.restore();
+            return;
+        }
+
+        // =====================================================================
+        // MODO B: LÍNEA LÍMITE (Espacio reducido / Plano medio)
+        // =====================================================================
+        if (workoutConfig.mode === 'line') {
+            const thresholdY = workoutConfig.lineY || 0.52;
+
+            lostTrackingCount = 0; // Persona humana real presente y validada
+
+            // ESTIMACIÓN ANATÓMICA INMUNE AL POLO:
+            // La cintura anatómica / cresta ilíaca se sitúa a ~88-90% de distancia entre hombros y cadera
+            const trackedWaistY = shoulderY + torsoHeight * 0.90;
+
+            // Dibujar punto en la cintura anatómica para feedback visual
             canvasCtx.save();
             canvasCtx.beginPath();
-            canvasCtx.arc(((leftHip.x + rightHip.x) / 2) * canvasElement.width, currentHipY * canvasElement.height, 6, 0, 2 * Math.PI);
+            canvasCtx.arc(((leftHip.x + rightHip.x) / 2) * canvasElement.width, trackedWaistY * canvasElement.height, 6, 0, 2 * Math.PI);
             canvasCtx.fillStyle = isInAir ? '#10b981' : '#38bdf8';
             canvasCtx.strokeStyle = '#ffffff';
             canvasCtx.lineWidth = 2;
@@ -262,24 +310,31 @@ function onResults(results) {
             canvasCtx.stroke();
             canvasCtx.restore();
 
-            const now = performance.now();
-
-            // Takeoff: La cadera sube y cruza la línea hacia arriba (en canvas, Y menor es más alto)
-            if (currentHipY < thresholdY && !isInAir) {
+            // A. FASE: DESPEGUE (Takeoff) - La cintura sube y cruza la línea hacia arriba
+            if (trackedWaistY < thresholdY && !isInAir) {
                 if (now - lastJumpTimestamp > MIN_JUMP_INTERVAL_MS) {
                     isInAir = true;
+                    airStartTime = now;
                     updatePoseGuide('air', 'En el aire');
                 }
             } 
-            // Landing: La cadera vuelve a bajar por debajo de la línea (con margen de histéresis)
-            else if (isInAir && currentHipY > (thresholdY + 0.02)) {
-                isInAir = false;
-                jumpCount++;
-                lastJumpTimestamp = now;
+            // B. FASE: ATERRIZAJE (Landing) - La cintura vuelve a bajar por debajo de la línea
+            else if (isInAir && trackedWaistY > (thresholdY + 0.008)) {
+                const airDuration = now - airStartTime;
 
-                counterElement.textContent = jumpCount;
-                updatePoseGuide('ground', 'Suelo');
-                updateSPM();
+                // Solo contar si el tiempo en el aire es biológicamente verosímil
+                if (airDuration >= MIN_AIR_DURATION_MS && airDuration <= MAX_AIR_DURATION_MS) {
+                    jumpCount++;
+                    lastJumpTimestamp = now;
+                    counterElement.textContent = jumpCount;
+                    updatePoseGuide('ground', 'Suelo');
+                    updateSPM();
+                } else if (airDuration > MAX_AIR_DURATION_MS) {
+                    // Si estuvo demasiado tiempo arriba, no fue un salto de cuerda; cancelar estado
+                    updatePoseGuide('ready', 'Listo para saltar');
+                }
+                isInAir = false;
+                airStartTime = 0;
             } 
             else if (!isInAir) {
                 updatePoseGuide('ready', 'Listo para saltar');
@@ -292,49 +347,31 @@ function onResults(results) {
         // =====================================================================
         // MODO A: CUERPO COMPLETO / AUTOMÁTICO (Algoritmo Dual)
         // =====================================================================
-        const leftShoulder = landmarks[11];
-        const rightShoulder = landmarks[12];
-        const leftHip = landmarks[23];
-        const rightHip = landmarks[24];
         const leftKnee = landmarks[25];
         const rightKnee = landmarks[26];
         const leftAnkle = landmarks[27];
         const rightAnkle = landmarks[28];
 
-        // 1. Visibilidad estricta de cuerpo completo
-        const shouldersVisible = leftShoulder && rightShoulder && leftShoulder.visibility > 0.5 && rightShoulder.visibility > 0.5;
-        const hipsVisible = leftHip && rightHip && leftHip.visibility > 0.6 && rightHip.visibility > 0.6;
         const kneesVisible = leftKnee && rightKnee && leftKnee.visibility > 0.45 && rightKnee.visibility > 0.45;
         const anklesVisible = leftAnkle && rightAnkle && leftAnkle.visibility > 0.45 && rightAnkle.visibility > 0.45;
 
-        const isFullBodyVisible = shouldersVisible && hipsVisible && kneesVisible && anklesVisible;
+        const isFullBodyVisible = kneesVisible && anklesVisible;
 
         if (!isFullBodyVisible) {
-            lostTrackingCount++;
-            if (lostTrackingCount > MAX_LOST_FRAMES) {
-                resetCalibration();
-                updatePoseGuide('searching', 'Muestra cuerpo completo (pies a cabeza)');
-            }
+            handleMissingPerson('Muestra cuerpo completo (pies a cabeza)');
             canvasCtx.restore();
             return;
         }
 
-        const currentHipY = (leftHip.y + rightHip.y) / 2;
         const currentAnkleY = (leftAnkle.y + rightAnkle.y) / 2;
-        const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
-        const torsoHeight = Math.abs(currentHipY - shoulderY) || 0.25;
         const bodyHeight = Math.abs(currentAnkleY - shoulderY);
 
-        // 2. Control de encuadre y distancia
+        // Control de encuadre y distancia adecuada
         const isTooClose = bodyHeight > 0.94 || currentAnkleY > 0.98 || shoulderY < 0.02 || torsoHeight > 0.45;
         const isTooFar = bodyHeight < 0.30;
 
         if (isTooClose) {
-            lostTrackingCount++;
-            if (lostTrackingCount > MAX_LOST_FRAMES) {
-                resetCalibration();
-            }
-            updatePoseGuide('searching', 'Aléjate un poco de la cámara');
+            handleMissingPerson('Aléjate un poco de la cámara');
             canvasCtx.restore();
             return;
         }
@@ -348,9 +385,7 @@ function onResults(results) {
         lostTrackingCount = 0;
         drawTrackingAids(landmarks);
 
-        const now = performance.now();
-
-        // 3. Fase de Calibración previa al conteo (requiere 1 segundo de estabilidad)
+        // Fase de Calibración previa al conteo (requiere 1 segundo de estabilidad)
         if (!isCalibrated) {
             if (calibrationStartTime === null) {
                 calibrationStartTime = now;
@@ -383,7 +418,7 @@ function onResults(results) {
             return;
         }
 
-        // 4. Detección Cinemática de Saltos (Usuario Calibrado)
+        // Detección Cinemática de Saltos (Usuario Calibrado)
         const hipElevation = baselineHipY - currentHipY;
         const ankleElevation = baselineAnkleY - currentAnkleY;
 
@@ -397,21 +432,28 @@ function onResults(results) {
         if (hipElevation > dynamicHipThreshold && ankleElevation > dynamicAnkleThreshold && isSymmetric && !isInAir) {
             if (now - lastJumpTimestamp > MIN_JUMP_INTERVAL_MS) {
                 isInAir = true;
+                airStartTime = now;
                 updatePoseGuide('air', 'En el aire');
             }
         } 
         // Landing
         else if (isInAir && (hipElevation < dynamicHipThreshold * 0.35 || ankleElevation < dynamicAnkleThreshold * 0.35)) {
+            const airDuration = now - airStartTime;
+
+            if (airDuration >= MIN_AIR_DURATION_MS && airDuration <= MAX_AIR_DURATION_MS) {
+                jumpCount++;
+                lastJumpTimestamp = now;
+                counterElement.textContent = jumpCount;
+                updatePoseGuide('ground', 'Suelo');
+                updateSPM();
+
+                baselineHipY = baselineHipY * 0.94 + currentHipY * 0.06;
+                baselineAnkleY = baselineAnkleY * 0.94 + currentAnkleY * 0.06;
+            } else if (airDuration > MAX_AIR_DURATION_MS) {
+                updatePoseGuide('ready', 'Listo para saltar');
+            }
             isInAir = false;
-            jumpCount++;
-            lastJumpTimestamp = now;
-
-            counterElement.textContent = jumpCount;
-            updatePoseGuide('ground', 'Suelo');
-            updateSPM();
-
-            baselineHipY = baselineHipY * 0.94 + currentHipY * 0.06;
-            baselineAnkleY = baselineAnkleY * 0.94 + currentAnkleY * 0.06;
+            airStartTime = 0;
         } 
         else if (!isInAir) {
             if (Math.abs(hipElevation) < dynamicHipThreshold * 0.5 && Math.abs(ankleElevation) < dynamicAnkleThreshold * 0.5) {
