@@ -297,15 +297,36 @@ function updateFeedbackBadge(type, message) {
 }
 
 // Interacción táctil / ratón para arrastrar la línea
+// Convierte coordenadas de pantalla (CSS con object-cover) al espacio normalizado real del canvas (0.0 - 1.0)
+function getCoverVerticalMetrics() {
+  const rect = calibrationCanvas.getBoundingClientRect();
+  const cw = calibrationCanvas.width || rect.width || 1;
+  const ch = calibrationCanvas.height || rect.height || 1;
+  const scale = Math.max(rect.width / cw, rect.height / ch);
+  const renderedHeight = ch * scale;
+  const cropTop = (renderedHeight - rect.height) / 2;
+  return { rect, renderedHeight, cropTop };
+}
+
+function clientYToNormalizedCanvasY(clientY) {
+  const { rect, renderedHeight, cropTop } = getCoverVerticalMetrics();
+  if (!renderedHeight) return currentConfig.lineY;
+  const yInRendered = (clientY - rect.top) + cropTop;
+  return yInRendered / renderedHeight;
+}
+
+function normalizedCanvasYToClientOffsetY(normY) {
+  const { renderedHeight, cropTop } = getCoverVerticalMetrics();
+  return (normY * renderedHeight) - cropTop;
+}
+
 function setupLineDragging() {
   if (!calibrationCamContainer) return;
 
   function updateLineFromClientY(clientY) {
-    const rect = calibrationCanvas.getBoundingClientRect();
-    const relativeY = clientY - rect.top;
-    let normalized = relativeY / rect.height;
+    let normalized = clientYToNormalizedCanvasY(clientY);
 
-    // Limitar entre 15% y 85% del alto de la pantalla
+    // Limitar entre 15% y 85% del alto real del frame de video
     normalized = Math.max(0.15, Math.min(0.85, normalized));
     currentConfig.lineY = normalized;
   }
@@ -313,7 +334,7 @@ function setupLineDragging() {
   calibrationCamContainer.addEventListener('pointerdown', (e) => {
     if (currentConfig.mode !== 'line' || isCountdownRunning) return;
     const rect = calibrationCanvas.getBoundingClientRect();
-    const linePixelY = currentConfig.lineY * rect.height;
+    const linePixelY = normalizedCanvasYToClientOffsetY(currentConfig.lineY);
     const pointerY = e.clientY - rect.top;
 
     // Permitir arrastrar si toca cerca de la línea (margen de 55px)
@@ -333,6 +354,7 @@ function setupLineDragging() {
   const stopDrag = (e) => {
     if (isDraggingLine) {
       isDraggingLine = false;
+      saveConfig(currentConfig);
       try {
         calibrationCamContainer.releasePointerCapture(e.pointerId);
       } catch (err) {}
@@ -443,6 +465,7 @@ function startAutoCalibrationCountdown(seconds = null) {
 
           const dynamicJumpOffset = Math.max(0.015, avgTorso * offsetFactor);
           currentConfig.lineY = Math.max(0.15, Math.min(0.85, avgWaistY - dynamicJumpOffset));
+          saveConfig(currentConfig);
 
           // Sonido de confirmación
           playBeep(880, 0.15);
@@ -482,9 +505,9 @@ function applyTimerUI(sec) {
   updateAutoPositionBtnLabel();
 }
 
-if (timer3sBtn) timer3sBtn.addEventListener('click', () => applyTimerUI(3));
-if (timer5sBtn) timer5sBtn.addEventListener('click', () => applyTimerUI(5));
-if (timer10sBtn) timer10sBtn.addEventListener('click', () => applyTimerUI(10));
+if (timer3sBtn) timer3sBtn.addEventListener('click', () => { applyTimerUI(3); saveConfig(currentConfig); });
+if (timer5sBtn) timer5sBtn.addEventListener('click', () => { applyTimerUI(5); saveConfig(currentConfig); });
+if (timer10sBtn) timer10sBtn.addEventListener('click', () => { applyTimerUI(10); saveConfig(currentConfig); });
 
 // Controles de sensibilidad / altura de salto (short, normal, high)
 function applySensitivityUI(sens) {
@@ -497,9 +520,9 @@ function applySensitivityUI(sens) {
   if (sensHighBtn) sensHighBtn.className = sens === 'high' ? activeClass : inactiveClass;
 }
 
-if (sensShortBtn) sensShortBtn.addEventListener('click', () => applySensitivityUI('short'));
-if (sensNormalBtn) sensNormalBtn.addEventListener('click', () => applySensitivityUI('normal'));
-if (sensHighBtn) sensHighBtn.addEventListener('click', () => applySensitivityUI('high'));
+if (sensShortBtn) sensShortBtn.addEventListener('click', () => { applySensitivityUI('short'); saveConfig(currentConfig); });
+if (sensNormalBtn) sensNormalBtn.addEventListener('click', () => { applySensitivityUI('normal'); saveConfig(currentConfig); });
+if (sensHighBtn) sensHighBtn.addEventListener('click', () => { applySensitivityUI('high'); saveConfig(currentConfig); });
 
 // Botones de selección de modo
 function applyModeUI(mode) {
@@ -522,8 +545,8 @@ function applyModeUI(mode) {
   }
 }
 
-if (modeAutoBtn) modeAutoBtn.addEventListener('click', () => applyModeUI('auto'));
-if (modeLineBtn) modeLineBtn.addEventListener('click', () => applyModeUI('line'));
+if (modeAutoBtn) modeAutoBtn.addEventListener('click', () => { applyModeUI('auto'); saveConfig(currentConfig); });
+if (modeLineBtn) modeLineBtn.addEventListener('click', () => { applyModeUI('line'); saveConfig(currentConfig); });
 
 // Botón: Guardar y pasar a entrenar
 if (saveCalibrationBtn) {

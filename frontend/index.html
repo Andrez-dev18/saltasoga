@@ -84,9 +84,9 @@
 
       <!-- Badge flotante de estado y guía de postura -->
       <div id="poseGuideBadge"
-        class="absolute top-3 left-3 z-20 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur-md border border-white/20 rounded-xl text-white shadow-lg pointer-events-none transition-all duration-300">
-        <span id="poseGuideDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse"></span>
-        <span id="poseGuideText" class="text-xs font-bold tracking-wide">Inicia para calibrar</span>
+        class="absolute top-3 left-3 z-20 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur-md border border-white/20 rounded-xl text-white shadow-lg pointer-events-none transition-all duration-300 max-w-[calc(100%-72px)]">
+        <span id="poseGuideDot" class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shrink-0"></span>
+        <span id="poseGuideText" class="text-xs font-bold tracking-wide truncate">Inicia para calibrar</span>
       </div>
 
       <!-- Guía sutil de encuadre -->
@@ -119,8 +119,8 @@
         Terminar
       </button>
       <button id="resetBtn"
-        class="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition active:scale-95">
-        Reiniciar
+        class="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow transition hidden active:scale-95">
+        Cancelar
       </button>
     </div>
   </main>
@@ -311,9 +311,9 @@
     </div>
   </aside>
 
-  <script src="calibration.js?v=1.5"></script>
-  <script src="app.js?v=2.6"></script>
-  <script src="menu.js?v=1.1"></script>
+  <script src="calibration.js?v=1.6"></script>
+  <script src="app.js?v=2.9"></script>
+  <script src="menu.js?v=1.2"></script>
 </body>
 
 </html>

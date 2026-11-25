@@ -70,10 +70,14 @@ const NAV_INACTIVE_CLASS = "w-full flex items-center gap-3 px-4 py-3 rounded-xl 
 function switchView(viewName) {
   toggleDrawer(false);
 
-  // Detener cámaras y temporizadores de vistas previas
+  // Detener cámaras y temporizadores de vistas previas (conservando sesión activa en pausa)
   if (viewName !== 'workout') {
-    if (typeof stopCamera === 'function') stopCamera();
-    if (typeof timerInterval !== 'undefined') clearInterval(timerInterval);
+    if (typeof window.pauseWorkoutOnLeave === 'function') {
+      window.pauseWorkoutOnLeave();
+    } else {
+      if (typeof stopCamera === 'function') stopCamera();
+      if (typeof timerInterval !== 'undefined') clearInterval(timerInterval);
+    }
   }
   if (viewName !== 'calibration') {
     if (typeof window.stopCalibrationCamera === 'function') window.stopCalibrationCamera();
@@ -107,8 +111,10 @@ function switchView(viewName) {
     if (currentViewTitle) currentViewTitle.textContent = 'Saltar Soga';
     if (navWorkoutBtn) navWorkoutBtn.className = NAV_ACTIVE_CLASS;
 
-    // Recargar configuración (por si cambió en calibración)
-    if (typeof window.reloadWorkoutConfig === 'function') {
+    // Recargar configuración y reactivar cámara en vivo si había un entrenamiento en curso
+    if (typeof window.resumeWorkoutView === 'function') {
+      window.resumeWorkoutView();
+    } else if (typeof window.reloadWorkoutConfig === 'function') {
       window.reloadWorkoutConfig();
     }
   } else if (viewName === 'calibration') {

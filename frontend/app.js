@@ -120,7 +120,7 @@ function updatePoseGuide(statusType, message) {
 
     if (!poseGuideDot || !guideFrame) return;
 
-    poseGuideDot.className = "w-2.5 h-2.5 rounded-full";
+    poseGuideDot.className = "w-2.5 h-2.5 rounded-full shrink-0";
     guideFrame.className = "absolute inset-4 rounded-xl border-2 pointer-events-none transition-colors duration-300";
 
     switch (statusType) {
@@ -216,6 +216,24 @@ pose.setOptions({
 
 pose.onResults(onResults);
 
+// Dibuja la línea guía de umbral cuando está activo el modo línea
+function drawWorkoutLineOverlay() {
+    const thresholdY = workoutConfig.lineY || 0.52;
+    const thresholdPixelY = thresholdY * canvasElement.height;
+    const lineColor = isInAir ? '#10b981' : 'rgba(6, 182, 212, 0.85)';
+    canvasCtx.save();
+    canvasCtx.strokeStyle = lineColor;
+    canvasCtx.lineWidth = isInAir ? 4 : 2.5;
+    canvasCtx.setLineDash(isInAir ? [] : [8, 6]);
+    canvasCtx.shadowColor = lineColor;
+    canvasCtx.shadowBlur = isInAir ? 14 : 6;
+    canvasCtx.beginPath();
+    canvasCtx.moveTo(0, thresholdPixelY);
+    canvasCtx.lineTo(canvasElement.width, thresholdPixelY);
+    canvasCtx.stroke();
+    canvasCtx.restore();
+}
+
 function onResults(results) {
     updateCanvasDimensions();
 
@@ -236,27 +254,14 @@ function onResults(results) {
 
         // 1. DIBUJAR LÍNEA GUÍA SI ESTÁ EN MODO LÍNEA (Incluso antes de validar presencia humana)
         if (workoutConfig.mode === 'line') {
-            const thresholdY = workoutConfig.lineY || 0.52;
-            const thresholdPixelY = thresholdY * canvasElement.height;
-            const lineColor = isInAir ? '#10b981' : 'rgba(6, 182, 212, 0.85)';
-            canvasCtx.save();
-            canvasCtx.strokeStyle = lineColor;
-            canvasCtx.lineWidth = isInAir ? 4 : 2.5;
-            canvasCtx.setLineDash(isInAir ? [] : [8, 6]);
-            canvasCtx.shadowColor = lineColor;
-            canvasCtx.shadowBlur = isInAir ? 14 : 6;
-            canvasCtx.beginPath();
-            canvasCtx.moveTo(0, thresholdPixelY);
-            canvasCtx.lineTo(canvasElement.width, thresholdPixelY);
-            canvasCtx.stroke();
-            canvasCtx.restore();
+            drawWorkoutLineOverlay();
         }
 
         // 2. GATEKEEPER DE PRESENCIA HUMANA REAL (Evita detección de sombras, paredes y cámaras vacías)
         if (!landmarks) {
             handleMissingPerson(workoutConfig.mode === 'line' 
-                ? 'Ponte frente a la cámara (cintura visible)' 
-                : 'Muestra cuerpo completo (pies a cabeza)');
+                ? 'Muestra tu cintura' 
+                : 'Muestra cuerpo entero');
             canvasCtx.restore();
             return;
         }
@@ -281,8 +286,8 @@ function onResults(results) {
 
         if (!hasHumanPresence) {
             handleMissingPerson(workoutConfig.mode === 'line' 
-                ? 'Ponte frente a la cámara (torso y cintura)' 
-                : 'Muestra cuerpo completo (pies a cabeza)');
+                ? 'Muestra tu cintura' 
+                : 'Muestra cuerpo entero');
             canvasCtx.restore();
             return;
         }
@@ -539,6 +544,14 @@ async function processVideo(timestamp) {
             }
             isProcessingFrame = false;
         }
+    } else if (isRunning && isPaused && videoElement.readyState >= 2) {
+        // Vista previa en vivo mientras está en pausa (sin procesar saltos ni gastar CPU)
+        updateCanvasDimensions();
+        canvasElement.style.transform = currentFacingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+        canvasCtx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+        if (workoutConfig.mode === 'line') {
+            drawWorkoutLineOverlay();
+        }
     }
     requestAnimationFrame(processVideo);
 }
@@ -551,6 +564,11 @@ function stopCamera() {
     videoElement.srcObject = null;
     videoElement.dataset.looping = "";
     isProcessingFrame = false;
+
+    if (canvasCtx && canvasElement) {
+        canvasCtx.fillStyle = '#000000';
+        canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+    }
 }
 
 // Alternar entre frontal y trasera
@@ -562,6 +580,11 @@ switchCamBtn.addEventListener('click', async () => {
 
 startBtn.addEventListener('click', async () => {
     loadWorkoutConfig();
+    jumpCount = 0;
+    secondsElapsed = 0;
+    counterElement.textContent = "0";
+    timerElement.textContent = "00:00";
+    spmElement.textContent = "0";
     resetCalibration();
     await startCamera();
     isRunning = true;
@@ -569,12 +592,13 @@ startBtn.addEventListener('click', async () => {
     startBtn.classList.add('hidden');
     pauseBtn.classList.remove('hidden');
     finishBtn.classList.remove('hidden');
+    resetBtn.classList.remove('hidden');
     pauseBtn.textContent = "Pausar";
 
     if (workoutConfig.mode === 'line') {
         updatePoseGuide('ready', 'Listo para saltar (Modo Línea)');
     } else {
-        updatePoseGuide('searching', 'Muestra cuerpo completo...');
+        updatePoseGuide('searching', 'Muestra cuerpo entero');
     }
     startTimer();
 });
@@ -587,6 +611,7 @@ pauseBtn.addEventListener('click', () => {
     } else {
         pauseBtn.textContent = "Pausar";
         resetCalibration();
+        startTimer();
         if (workoutConfig.mode === 'line') {
             updatePoseGuide('ready', 'Listo para saltar');
         } else {
@@ -595,8 +620,65 @@ pauseBtn.addEventListener('click', () => {
     }
 });
 
-// BOTÓN REINICIAR: Pone todo en cero sin guardar
+// Pausa segura al salir de la vista de entrenamiento (libera cámara y conserva progreso)
+window.pauseWorkoutOnLeave = function () {
+    if (typeof timerInterval !== 'undefined') clearInterval(timerInterval);
+    stopCamera();
+    if (isRunning) {
+        isPaused = true;
+        if (pauseBtn) pauseBtn.textContent = "Reanudar";
+        updatePoseGuide('paused', 'Pausado');
+    }
+};
+
+// Reactiva la cámara en vivo al regresar a Saltar Soga si hay una sesión activa
+window.resumeWorkoutView = async function () {
+    loadWorkoutConfig();
+    if (!isRunning) return;
+
+    resetCalibration();
+    isPaused = true;
+    if (pauseBtn) pauseBtn.textContent = "Reanudar";
+    updatePoseGuide('paused', 'Pausado');
+
+    try {
+        await startCamera();
+    } catch (err) {
+        console.warn("No se pudo reactivar la cámara al volver:", err);
+    }
+};
+
+// Recuperación automática si el usuario cambia de pestaña/app o bloquea el teléfono
+document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'hidden' && isRunning) {
+        if (!isPaused) {
+            isPaused = true;
+            if (pauseBtn) pauseBtn.textContent = "Reanudar";
+            updatePoseGuide('paused', 'Pausado');
+        }
+        clearInterval(timerInterval);
+    } else if (document.visibilityState === 'visible' && isRunning) {
+        const viewWorkoutEl = document.getElementById('view-workout');
+        const isWorkoutVisible = viewWorkoutEl && !viewWorkoutEl.classList.contains('hidden');
+        if (isWorkoutVisible) {
+            const hasLiveTrack = currentStream && currentStream.getVideoTracks().some(t => t.readyState === 'live');
+            if (!hasLiveTrack || videoElement.paused) {
+                try {
+                    await startCamera();
+                } catch (err) {
+                    console.warn("Error al reactivar cámara tras volver a la pestaña:", err);
+                }
+            }
+        }
+    }
+});
+
+// BOTÓN CANCELAR: Detiene la sesión, apaga la cámara y reinicia todo sin guardar
 resetBtn.addEventListener('click', () => {
+    clearInterval(timerInterval);
+    stopCamera();
+    isRunning = false;
+    isPaused = false;
     jumpCount = 0;
     secondsElapsed = 0;
     resetCalibration();
@@ -605,19 +687,14 @@ resetBtn.addEventListener('click', () => {
     timerElement.textContent = "00:00";
     spmElement.textContent = "0";
 
-    if (isRunning) {
-        if (isPaused) {
-            updatePoseGuide('paused', 'Pausado');
-        } else {
-            if (workoutConfig.mode === 'line') {
-                updatePoseGuide('ready', 'Listo para saltar');
-            } else {
-                updatePoseGuide('searching', 'Muestra cuerpo completo');
-            }
-        }
-    } else {
-        updatePoseGuide('waiting', 'Listo');
-    }
+    updatePoseGuide('waiting', 'Inicia para calibrar');
+    if (statusElement) statusElement.textContent = "Listo";
+
+    pauseBtn.classList.add('hidden');
+    finishBtn.classList.add('hidden');
+    resetBtn.classList.add('hidden');
+    startBtn.classList.remove('hidden');
+    startBtn.textContent = "Iniciar";
 });
 
 // Registro de Service Worker para habilitar instalación PWA
@@ -656,6 +733,7 @@ finishBtn.addEventListener('click', async () => {
 
     finishBtn.classList.add('hidden');
     pauseBtn.classList.add('hidden');
+    resetBtn.classList.add('hidden');
     startBtn.classList.remove('hidden');
     startBtn.textContent = "Nuevo Entrenamiento";
 });
