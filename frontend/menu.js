@@ -137,6 +137,7 @@ function switchView(viewName) {
     if (currentViewTitle) currentViewTitle.textContent = 'Historial de Sesiones';
     if (navHistoryBtn) navHistoryBtn.className = NAV_ACTIVE_CLASS;
 
+    cargarMetricasUsuario();
     cargarHistorialSesiones();
   }
 }
@@ -157,7 +158,92 @@ if (refreshHistoryBtn) refreshHistoryBtn.addEventListener('click', () => {
   cargarHistorialSesiones();
 });
 
-// Cargar historial de sesiones desde backend
+// Helpers para sesiones locales en Modo Invitado
+function getGuestSessionsLocal() {
+  const key = window.GUEST_SESSIONS_KEY || 'saltasoga_guest_sessions';
+  try {
+    return JSON.parse(localStorage.getItem(key) || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+function setGuestSessionsLocal(sessions) {
+  const key = window.GUEST_SESSIONS_KEY || 'saltasoga_guest_sessions';
+  localStorage.setItem(key, JSON.stringify(sessions));
+}
+
+function renderStatsCards(stats) {
+  const elJumps = document.getElementById('statTotalJumps');
+  const elSessions = document.getElementById('statTotalSessions');
+  const elBest = document.getElementById('statBestJumps');
+  const elKcal = document.getElementById('statTotalCalories');
+
+  if (elJumps) elJumps.textContent = (stats.total_jumps ?? 0).toLocaleString('es-ES');
+  if (elSessions) elSessions.textContent = stats.total_sessions ?? 0;
+  if (elBest) elBest.textContent = stats.best_session_jumps ?? 0;
+  if (elKcal) elKcal.textContent = Math.round(stats.total_calories ?? 0);
+}
+
+// Cargar métricas personales del usuario (API autenticada o local en Modo Invitado)
+async function cargarMetricasUsuario() {
+  if (typeof window.isAuthenticated === 'function' && window.isAuthenticated()) {
+    try {
+      const res = await window.apiFetch('/stats');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data) renderStatsCards(json.data);
+        return;
+      }
+    } catch (err) {
+      console.warn('No se pudieron cargar métricas del servidor:', err);
+    }
+  }
+
+  const localSessions = getGuestSessionsLocal();
+  const stats = localSessions.reduce((acc, s) => {
+    const jumps = Number(s.total_jumps) || 0;
+    acc.total_sessions += 1;
+    acc.total_jumps += jumps;
+    acc.total_calories += Number(s.calories) || 0;
+    if (jumps > acc.best_session_jumps) acc.best_session_jumps = jumps;
+    return acc;
+  }, { total_sessions: 0, total_jumps: 0, best_session_jumps: 0, total_calories: 0 });
+
+  renderStatsCards(stats);
+}
+
+async function eliminarSesion(id, isLocal) {
+  if (isLocal) {
+    const updated = getGuestSessionsLocal().filter(s => String(s.id) !== String(id));
+    setGuestSessionsLocal(updated);
+    cargarMetricasUsuario();
+    cargarHistorialSesiones(filterFrom?.value || null, filterTo?.value || null);
+    return;
+  }
+
+  try {
+    const res = await window.apiFetch(`/sessions/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      cargarMetricasUsuario();
+      cargarHistorialSesiones(filterFrom?.value || null, filterTo?.value || null);
+    }
+  } catch (err) {
+    console.error('Error al eliminar sesión:', err);
+  }
+}
+
+window.eliminarSesion = eliminarSesion;
+
+// Recargar historial y métricas si cambia el usuario autenticado / invitado
+window.onAuthStateChanged = function () {
+  if (viewHistory && !viewHistory.classList.contains('hidden')) {
+    cargarMetricasUsuario();
+    cargarHistorialSesiones();
+  }
+};
+
+// Cargar historial de sesiones desde backend (o localStorage en Modo Invitado)
 async function cargarHistorialSesiones(from = null, to = null) {
   const container = document.getElementById('sessionsList');
   if (!container) return;
@@ -165,23 +251,47 @@ async function cargarHistorialSesiones(from = null, to = null) {
   container.innerHTML = `<div class="text-center text-sm text-gray-500 py-8">Cargando entrenamientos...</div>`;
 
   try {
-    let url = `${API_BASE_URL}/sessions`;
-    const params = new URLSearchParams();
+    let data = [];
+    let range = null;
 
-    if (from && to) {
-      params.append('from', from);
-      params.append('to', to);
-      url += `?${params.toString()}`;
+    if (typeof window.isAuthenticated === 'function' && window.isAuthenticated()) {
+      let endpoint = '/sessions';
+      const params = new URLSearchParams();
+
+      if (from && to) {
+        params.append('from', from);
+        params.append('to', to);
+        endpoint += `?${params.toString()}`;
+      }
+
+      const res = await window.apiFetch(endpoint);
+      const json = await res.json();
+      data = json.data || [];
+      range = json.range || null;
+    } else {
+      // Modo Invitado: leer y filtrar sesiones guardadas localmente
+      const allLocal = getGuestSessionsLocal();
+      const today = new Date();
+      const defaultFrom = new Date();
+      defaultFrom.setDate(today.getDate() - 7);
+
+      const fromStr = from || defaultFrom.toISOString().split('T')[0];
+      const toStr = to || today.toISOString().split('T')[0];
+      range = { from: fromStr, to: toStr };
+
+      const fromMs = new Date(`${fromStr}T00:00:00`).getTime();
+      const toMs = new Date(`${toStr}T23:59:59`).getTime();
+
+      data = allLocal.filter(item => {
+        const t = new Date(item.completed_at || Date.now()).getTime();
+        return t >= fromMs && t <= toMs;
+      });
     }
 
-    const res = await fetch(url);
-    const json = await res.json();
-    const data = json.data || [];
-
-    // Sincronizar los inputs si el backend devolvió el rango aplicado por defecto
-    if (json.range && filterFrom && filterTo && !from) {
-      filterFrom.value = json.range.from;
-      filterTo.value = json.range.to;
+    // Sincronizar los inputs con el rango aplicado
+    if (range && filterFrom && filterTo && !from) {
+      filterFrom.value = range.from;
+      filterTo.value = range.to;
     }
 
     if (data.length === 0) {
@@ -207,15 +317,28 @@ async function cargarHistorialSesiones(from = null, to = null) {
       const totalSegs = parseInt(item.duration_seconds, 10) || 0;
       const mins = Math.floor(totalSegs / 60);
       const segs = String(totalSegs % 60).padStart(2, '0');
+      const localBadge = item.is_local
+        ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 font-semibold">Local</span>`
+        : '';
 
       return `
         <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-4 shadow-xs hover:border-emerald-500/50 transition">
-          <div class="flex justify-between items-center mb-2">
+          <div class="flex justify-between items-center mb-2 gap-2">
             <span class="text-base font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
               <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
               ${item.total_jumps ?? 0} saltos
+              ${localBadge}
             </span>
-            <span class="text-xs text-gray-400">${fechaFormateada}</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-400">${fechaFormateada}</span>
+              <button type="button" onclick="window.eliminarSesion('${item.id}', ${Boolean(item.is_local)})"
+                title="Eliminar sesión"
+                class="p-1 rounded-lg text-gray-400 hover:text-rose-500 hover:bg-rose-500/10 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div class="grid grid-cols-3 gap-2 text-center text-xs pt-2 border-t border-gray-100 dark:border-gray-800">

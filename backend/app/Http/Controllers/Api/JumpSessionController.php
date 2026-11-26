@@ -3,24 +3,23 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Carbon\Carbon;
-use Illuminate\Http\Request;
 use App\Models\JumpSession;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class JumpSessionController extends Controller
 {
     /**
-     * devuelve el historial de sessiones de salto
+     * Devuelve el historial de sesiones de salto del usuario autenticado.
      */
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
-        // 1. Validar fechas opcionales
         $request->validate([
             'from' => 'nullable|date_format:Y-m-d',
-            'to'   => 'nullable|date_format:Y-m-d|after_or_equal:from',
+            'to' => 'nullable|date_format:Y-m-d|after_or_equal:from',
         ]);
 
-        // 2. Si no se envían, por defecto toma los últimos 7 días
         $from = $request->filled('from')
             ? Carbon::parse($request->query('from'))->startOfDay()
             : Carbon::now()->subDays(7)->startOfDay();
@@ -29,70 +28,129 @@ class JumpSessionController extends Controller
             ? Carbon::parse($request->query('to'))->endOfDay()
             : Carbon::now()->endOfDay();
 
-        // 3. Consultar las sesiones en ese rango
-        $sessions = JumpSession::whereBetween('completed_at', [$from, $to])
+        $sessions = $request->user()
+            ->jumpSessions()
+            ->whereBetween('completed_at', [$from, $to])
             ->latest('completed_at')
             ->get();
 
         return response()->json([
             'status' => 'success',
-            'range'  => [
+            'range' => [
                 'from' => $from->toDateString(),
-                'to'   => $to->toDateString(),
+                'to' => $to->toDateString(),
             ],
-            'data'   => $sessions
+            'data' => $sessions,
         ], 200);
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Registra una nueva sesión de salto asociada al usuario autenticado.
      */
-    public function store(Request $request)
+    public function store(Request $request): JsonResponse
     {
-        // 1. Validación de datos de entrada
         $validated = $request->validate([
             'duration_seconds' => 'required|integer|min:1',
-            'total_jumps'      => 'required|integer|min:0',
-            'avg_spm'          => 'nullable|integer|min:0',
-            'calories'         => 'nullable|numeric|min:0',
-            'user_id'          => 'nullable|exists:users,id',
+            'total_jumps' => 'required|integer|min:0',
+            'avg_spm' => 'nullable|integer|min:0',
+            'calories' => 'nullable|numeric|min:0',
+            'completed_at' => 'nullable|date',
         ]);
 
-        // Por ahora, si no hay autenticación, usamos el usuario 1 por defecto (o puedes crearlo)
-        $validated['user_id'] = $validated['user_id'] ?? 1;
+        $validated['completed_at'] = $validated['completed_at'] ?? now();
 
-        // 2. Creación en base de datos con Eloquent
-        $session = JumpSession::create($validated);
+        $session = $request->user()->jumpSessions()->create($validated);
 
-        // 3. Respuesta JSON con código HTTP 201 (Created)
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'message' => 'Sesión registrada correctamente',
-            'data'    => $session
+            'data' => $session,
         ], 201);
     }
 
     /**
-     * Display the specified resource.
+     * Muestra el detalle de una sesión si pertenece al usuario autenticado.
      */
-    public function show(string $id)
+    public function show(Request $request, JumpSession $session): JsonResponse
     {
-        //
+        if ($session->user_id !== $request->user()->id) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No autorizado para ver esta sesión.',
+            ], 403);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $session,
+        ], 200);
     }
 
     /**
-     * Update the specified resource in storage.
+     * Elimina una sesión si pertenece al usuario autenticado.
      */
-    public function update(Request $request, string $id)
+    public function destroy(Request $request, JumpSession $session): JsonResponse
     {
-        //
+        if ($session->user_id !== $request->user()->id) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'No autorizado para eliminar esta sesión.',
+            ], 403);
+        }
+
+        $session->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Sesión eliminada correctamente',
+        ], 200);
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Devuelve métricas acumuladas y récords personales del usuario autenticado.
      */
-    public function destroy(string $id)
+    public function stats(Request $request): JsonResponse
     {
-        //
+        $query = $request->user()->jumpSessions();
+
+        $summary = (clone $query)->selectRaw('
+            COUNT(*) as total_sessions,
+            COALESCE(SUM(total_jumps), 0) as total_jumps,
+            COALESCE(SUM(duration_seconds), 0) as total_duration_seconds,
+            COALESCE(SUM(calories), 0) as total_calories,
+            COALESCE(AVG(avg_spm), 0) as avg_spm,
+            COALESCE(MAX(total_jumps), 0) as best_session_jumps,
+            COALESCE(MAX(avg_spm), 0) as best_spm,
+            COALESCE(MAX(duration_seconds), 0) as best_duration_seconds
+        ')->first();
+
+        $weekSummary = (clone $query)
+            ->where('completed_at', '>=', Carbon::now()->subDays(7)->startOfDay())
+            ->selectRaw('
+                COUNT(*) as sessions,
+                COALESCE(SUM(total_jumps), 0) as total_jumps,
+                COALESCE(SUM(duration_seconds), 0) as total_duration_seconds,
+                COALESCE(SUM(calories), 0) as total_calories
+            ')->first();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'total_sessions' => (int) $summary->total_sessions,
+                'total_jumps' => (int) $summary->total_jumps,
+                'total_duration_seconds' => (int) $summary->total_duration_seconds,
+                'total_calories' => round((float) $summary->total_calories, 2),
+                'avg_spm' => (int) round((float) $summary->avg_spm),
+                'best_session_jumps' => (int) $summary->best_session_jumps,
+                'best_spm' => (int) $summary->best_spm,
+                'best_duration_seconds' => (int) $summary->best_duration_seconds,
+                'last_7_days' => [
+                    'sessions' => (int) $weekSummary->sessions,
+                    'total_jumps' => (int) $weekSummary->total_jumps,
+                    'total_duration_seconds' => (int) $weekSummary->total_duration_seconds,
+                    'total_calories' => round((float) $weekSummary->total_calories, 2),
+                ],
+            ],
+        ], 200);
     }
 }

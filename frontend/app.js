@@ -771,21 +771,43 @@ themeToggleBtn.addEventListener('click', () => {
   applyTheme(!isCurrentDark);
 });
 
-async function guardarSesionEnBackend(duracionSegundos, totalSaltos, promedioSpm, calorias) {
+function saveGuestSessionLocal(sessionData) {
+  const key = window.GUEST_SESSIONS_KEY || 'saltasoga_guest_sessions';
   try {
-    const response = await fetch(`${API_BASE_URL}/sessions`, {
+    const existing = JSON.parse(localStorage.getItem(key) || '[]');
+    existing.unshift({
+      id: Date.now(),
+      ...sessionData,
+      completed_at: new Date().toISOString(),
+      is_local: true
+    });
+    localStorage.setItem(key, JSON.stringify(existing));
+  } catch (e) {
+    console.warn('No se pudo guardar la sesión local:', e);
+  }
+}
+
+async function guardarSesionEnBackend(duracionSegundos, totalSaltos, promedioSpm, calorias) {
+  const payload = {
+    duration_seconds: Math.round(duracionSegundos),
+    total_jumps: totalSaltos,
+    avg_spm: Math.round(promedioSpm),
+    calories: parseFloat(calorias) || 0
+  };
+
+  if (typeof window.isAuthenticated === 'function' && !window.isAuthenticated()) {
+    saveGuestSessionLocal(payload);
+    return;
+  }
+
+  try {
+    const fetcher = typeof window.apiFetch === 'function'
+      ? window.apiFetch
+      : (ep, opts) => fetch(`${API_BASE_URL}${ep}`, opts);
+
+    const response = await fetcher('/sessions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        duration_seconds: Math.round(duracionSegundos),
-        total_jumps: totalSaltos,
-        avg_spm: Math.round(promedioSpm),
-        calories: parseFloat(calorias) || 0,
-        user_id: 1
-      })
+      body: JSON.stringify(payload)
     });
 
     const resultado = await response.json();
